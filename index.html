@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Vår Sunne MatApp</title>
+   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+   <style>
+       body { font-family: -apple-system, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; line-height: 1.5; }
+       .card { background: #1e1e1e; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 20px; border: 1px solid #333; }
+       h1, h2, h3 { color: #ffffff; margin-top: 0; }
+       input, select { padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #444; background: #2c2c2c; color: white; width: calc(100% - 26px); font-size: 16px; }
+       button { padding: 14px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; width: 100%; font-size: 16px; transition: opacity 0.2s; }
+       button:active { opacity: 0.7; }
+       .add-btn { background: #0b84ff; color: white; margin-top: 10px; }
+       .check-btn { background: #32d74b; color: black; width: auto; padding: 6px 15px; font-size: 14px; }
+       .del-btn { background: #ff453a; color: white; width: auto; padding: 6px 12px; font-size: 14px; }
+       .undo-btn { background: #555; color: white; margin-top: 10px; font-size: 14px; padding: 8px; display: none; width: 100%; border-radius: 10px; }
+       ul { list-style: none; padding: 0; margin: 0; }
+       li { background: #252525; padding: 15px; margin-bottom: 10px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; }
+
+       .shop-cat-header { background: #2c2c2c; padding: 10px 15px; border-radius: 8px; margin: 15px 0 10px 0; font-size: 0.9rem; color: #0b84ff; display: flex; justify-content: space-between; cursor: pointer; border: 1px solid #444; }
+       .clickable-header { cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
+
+       #recipeModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; backdrop-filter: blur(5px); }
+       .modal-content { background:#1e1e1e; margin:10% auto; padding:25px; width:85%; max-width: 400px; border-radius:25px; position:relative; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+       .close-btn { position:absolute; right:20px; top:15px; font-size:28px; color: #888; cursor:pointer; }
+       .recipe-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #333; }
+       .recipe-btn { background: #0b84ff; color: white; width: auto; padding: 8px 15px; font-size: 13px; border-radius: 8px; }
+   </style>
+</head>
+<body>
+
+   <h1>🍎 Matplanlegger</h1>
+
+   <div class="card">
+       <h3>➕ Legg til vare</h3>
+       <input type="text" id="itemInput" placeholder="Varenavn (f.eks. laks)">
+       <div style="display: flex; gap: 8px;">
+           <input type="number" id="amountInput" value="1" style="width: 35%;">
+           <select id="unitInput" style="width: 65%;">
+               <option value="stk">stk</option>
+               <option value="g">g</option>
+               <option value="kg">kg</option>
+               <option value="dl">dl</option>
+               <option value="l">l</option>
+               <option value="pk">pk</option>
+               <option value="pose">pose</option>
+           </select>
+       </div>
+       <select id="categoryInput">
+           <option value="kjøleskap">❄️ Kjøleskap</option>
+           <option value="fryser">🧊 Fryser</option>
+           <option value="tørrvarer">🥫 Tørrvarer</option>
+           <option value="renhold">🧼 Hus & Renhold</option>
+           <option value="pleie">🧴 Personlig pleie</option>
+       </select>
+       <button class="add-btn" onclick="addItem()">Legg til i handleliste</button>
+   </div>
+
+   <div class="card">
+       <h2 class="clickable-header" onclick="toggleList('shoppingListContainer')">🛒 Handleliste <span>▼</span></h2>
+       <div id="shoppingListContainer">
+           <div id="shop-categories"></div>
+           <button id="undoBtn" class="undo-btn" onclick="undoLastAction()">↩ Angre siste godkjenning</button>
+       </div>
+   </div>
+
+   <div class="card" style="border-left: 5px solid #ffcc00;">
+       <h2 class="clickable-header" onclick="toggleList('dashboardList')">💡 Middagsforslag <span>▼</span></h2>
+       <div id="dashboardList" style="display:none; margin-top: 15px;"></div>
+   </div>
+
+   <div class="card">
+       <h2 class="clickable-header" onclick="toggleList('inventorySection')">📦 Hva har vi? <span>▼</span></h2>
+       <div id="inventorySection" style="display:none; margin-top: 15px;">
+           <div class="shop-cat-header" onclick="toggleList('inv-kjøleskap')">❄️ Kjøleskap <span>↕️</span></div>
+           <ul id="inv-kjøleskap"></ul>
+           <div class="shop-cat-header" onclick="toggleList('inv-fryser')">🧊 Fryser <span>↕️</span></div>
+           <ul id="inv-fryser"></ul>
+           <div class="shop-cat-header" onclick="toggleList('inv-tørrvarer')">🥫 Tørrvarer <span>↕️</span></div>
+           <ul id="inv-tørrvarer"></ul>
+           <div class="shop-cat-header" onclick="toggleList('inv-renhold')">🧼 Hus & Renhold <span>↕️</span></div>
+           <ul id="inv-renhold"></ul>
+           <div class="shop-cat-header" onclick="toggleList('inv-pleie')">🧴 Personlig pleie <span>↕️</span></div>
+           <ul id="inv-pleie"></ul>
+       </div>
+   </div>
+
+   <div id="recipeModal">
+       <div class="modal-content">
+           <span class="close-btn" onclick="closeRecipe()">&times;</span>
+           <h2 id="modalTitle"></h2>
+           <div id="modalContent"></div>
+       </div>
+   </div>
+
+   <script src="script.js"></script>
+</body>
+</html>
